@@ -22,7 +22,7 @@ steps:
       - 'deploy'
       - 'hat-server'
       - '--image'
-      - 'gcr.io/vertex-model-training/ems_server'
+      - 'gcr.io/vertex-model-training/hat_server'
       - '--platform'
       - 'managed'
       - '--region'
