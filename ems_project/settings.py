@@ -28,7 +28,7 @@ SECRET_KEY = "django-insecure-h8pki%_7ld!zf^^ro&y+a3)9f&6=v60-qdo%(o^+u1e6#1hitc
 DEBUG = True
 
 ALLOWED_HOSTS = [ '*', 'hat-server-382170497486.us-central1.run.app', 'hat-webapp-382170497486.us-central1.run.app']
-CSRF_TRUSTED_ORIGINS = ['https://hat-webapp-382170497486.us-central1.run.app/']
+CSRF_TRUSTED_ORIGINS = ['https://hat-webapp-382170497486.us-central1.run.app']
 #https://ems-webapp-530056698.us-central1.run.app/
 
 
