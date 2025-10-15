@@ -45,7 +45,6 @@ from .models import Gateway
 def save_gateway_data(request):
     try:
         data = json.loads(request.body.decode('utf-8'))
-
         gateway_mac = data.get("GateWayMAC")
 
         # ✅ Step 1: Check if MAC exists in Gateways table
@@ -56,26 +55,37 @@ def save_gateway_data(request):
                 "message": f"MAC address '{gateway_mac}' not found in Gateways table."
             }, status=404)
 
-        # ✅ Step 2: Set gateway_id based on existing Gateways record
         gateway_id = existing_gateway.G_id
 
-        # ✅ Step 3: Check if we already have a SensorGateway for this GateWayID
-        gateway = SensorGateway.objects.filter(gateway_id=gateway_id).first()
+        # ✅ Step 2: Check if SensorGateway already exists
+        gateway, created = SensorGateway.objects.get_or_create(
+            gateway_id=gateway_id,
+            defaults={
+                "gateway_mac": gateway_mac,
+                "alert_status": data.get("Alert_Status"),
+                "warning_status": data.get("Warning_status"),
+                "arm": data.get("Arm"),
+                "address": data.get("address"),
+                "latitude": data.get("Lat_Log", ["", ""])[0],
+                "longitude": data.get("Lat_Log", ["", ""])[1],
+            }
+        )
 
-        if gateway:
-            print(f"⚙️ Gateway {gateway_id} already exists — updating sensors only.")
+        # ✅ Step 3: If it already exists — update alert/warning/status data
+        if not created:
+            gateway.alert_status = data.get("Alert_Status", gateway.alert_status)
+            gateway.warning_status = data.get("Warning_status", gateway.warning_status)
+            gateway.arm = data.get("Arm", gateway.arm)
+            gateway.address = data.get("address", gateway.address)
+
+            latlog = data.get("Lat_Log", [])
+            if len(latlog) == 2:
+                gateway.latitude, gateway.longitude = latlog
+
+            gateway.save()
+            print(f"🔄 Updated SensorGateway {gateway_id} with latest alert/warning data.")
         else:
-            print(f"🆕 Creating new SensorGateway for GateWayID: {gateway_id}.")
-            gateway = SensorGateway.objects.create(
-                gateway_id=gateway_id,
-                gateway_mac=gateway_mac,
-                alert_status=data.get("Alert_Status"),
-                warning_status=data.get("Warning_status"),
-                arm=data.get("Arm"),
-                address=data.get("address"),
-                latitude=data.get("Lat_Log", ["", ""])[0],
-                longitude=data.get("Lat_Log", ["", ""])[1],
-            )
+            print(f"🆕 Created new SensorGateway for Gateway ID: {gateway_id}")
 
         # ✅ Step 4: Save or update sensor data
         meta_data = data.get("Meta_Data", [])
@@ -96,7 +106,10 @@ def save_gateway_data(request):
 
         return JsonResponse({
             "success": True,
-            "message": f"Sensor data saved successfully for Gateway ID {gateway_id}."
+            "message": (
+                f"Sensor data {'created' if created else 'updated'} successfully "
+                f"for Gateway ID {gateway_id}."
+            )
         })
 
     except Exception as e:
@@ -163,13 +176,6 @@ def get_gateway_sensors(request):
         return JsonResponse({'success': False, 'message': 'Gateway not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
-
-
-
-
-
-
-
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
