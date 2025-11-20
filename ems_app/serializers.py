@@ -1,25 +1,26 @@
 from rest_framework import serializers
-from .models import User, Project, User_Project, Hardware, Gateways, Data, Project_Manager, Box, Device, Gateway, Com1, Com2, E1, E2, Analyzer, MetaData
-from .models import SensorGateway, Sensor
-from .models import Gateways
 
-class GatewaysSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Gateways
-        fields = [
-            'G_id',
-            'gateway_name',
-            'mac_address',
-            'status',
-            'deploy_status',
-            'config',
-            'user_id',
-            'project',
-            'analyzers_by_port',
-            'created_by_id',
-            "latitude",
-            "longitude",
-        ]
+from .models import (
+    E1,
+    E2,
+    Analyzer,
+    Box,
+    Com1,
+    Com2,
+    Data,
+    Device,
+    Gateway,
+    Gateways,
+    Hardware,
+    MetaData,
+    Project,
+    Project_Manager,
+    Sensor,
+    SensorGateway,
+    User,
+    User_Project,
+)
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

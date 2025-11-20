@@ -1,41 +1,130 @@
-import uuid
-from django.db import IntegrityError
-from django.utils import timezone
-from datetime import datetime
-from django.forms import ValidationError
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
-from .models import E1, E2, Com1, Com2, User , Project ,Hardware , User_Project , Project_Manager,Box, Device, Gateway,Gateways,Analyzer,Com1 , Com2 , E1 ,E2,MetaData, admincr, superadmincr, InvoiceTable
-import json
-from collections import defaultdict
-from rest_framework import permissions
-from django.db.models import Max
-from django.utils.dateparse import parse_date
-from django.utils import timezone
-from datetime import datetime,timedelta
-from datetime import timedelta  
-from .models import Subscription, User
-from datetime import datetime, timedelta 
-from django.http import JsonResponse, HttpRequest
-from django.utils.timezone import make_aware
-import logging
 import base64
-from django.views import View
-from rest_framework.decorators import api_view,  permission_classes
+import json
+import logging
+import random
+import uuid
+from collections import defaultdict
+from datetime import datetime, timedelta
 
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.views import TokenObtainPairView
+import cloudinary.api
+import cloudinary.uploader
+from django.core.mail import send_mail
+from django.db import IntegrityError
+from django.db.models import Max
+from django.forms import ValidationError
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.utils.timezone import make_aware
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework import permissions, status
+from rest_framework.decorators import api_view, permission_classes
+
 # from django.core.files.uploadedfile import InMemoryUploadedFile
 # from django.core.files.storage import default_storage
 from rest_framework.response import Response
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from .models import (
+    E1,
+    E2,
+    Analyzer,
+    Box,
+    Com1,
+    Com2,
+    Device,
+    Gateway,
+    Gateways,
+    Hardware,
+    InvoiceTable,
+    MetaData,
+    Project,
+    Project_Manager,
+    Sensor,
+    SensorGateway,
+    Subscription,
+    User,
+    User_Project,
+    admincr,
+    superadmincr,
+)
+from .serializers import GatewaySerializer, SensorSerializer
 
 
-from .models import SensorGateway, Sensor
-from .serializers import GatewaySerializer, GatewaysSerializer, SensorSerializer
-from django.http import JsonResponse
-from .models import Gateway
+def generate_code():
+    """Generate a random 4-digit code"""
+    return f"{random.randint(1000, 9999)}"
+
+
+
+
+@api_view(['POST'])
+@permission_classes([])  # No auth required for password reset
+def send_reset_code(request):
+    email = request.data.get('email')
+
+    if not email:
+        return Response({"success": False, "message": "Email is required"})
+
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({"success": False, "message": "Invalid email"})
+
+    # Generate random 4-digit code
+    code = generate_code()
+    user.reset_code = code   # make sure you added this field in User model
+    user.save()
+
+    # Send code to user's email
+    subject = "Password Reset Code"
+    message = f"Your password reset code is: {code}"
+    recipient_list = [email]
+
+    try:
+        send_mail(
+            subject,
+            message,
+            None,  # Uses DEFAULT_FROM_EMAIL from settings.py
+            recipient_list,
+            fail_silently=False,
+        )
+        return Response({
+            "success": True,
+            "message": "Reset code sent successfully",
+            "email": email
+        })
+    except Exception as e:
+        return Response({
+            "success": False,
+            "message": f"Failed to send email: {str(e)}"
+        })
+        
+        
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def verify_reset_code(request):
+    code = request.data.get('code')
+
+    if not code:
+        return Response({"success": False, "message": "Code is required"})
+
+    try:
+        user = User.objects.get(reset_code=code)
+    except User.DoesNotExist:
+        return Response({"success": False, "message": "Invalid or expired code"})
+
+    # Code matched
+    user.reset_code = None  # clear after success
+    user.save()
+
+    return Response({"success": True,
+                     "user_id" : user.user_id,
+                     "message": "Code verified successfully"})
 
 
 
@@ -45,49 +134,50 @@ from .models import Gateway
 def save_gateway_data(request):
     try:
         data = json.loads(request.body.decode('utf-8'))
-        gateway_mac = data.get("GateWayMAC")
 
-        # ✅ Step 1: Check if MAC exists in Gateways table
-        existing_gateway = Gateways.objects.filter(mac_address=gateway_mac).first()
-        if not existing_gateway:
+        gateway_mac = data.get("GateWayMAC")
+        arm = data.get("Arm")
+
+        # Step 1: Check if MAC exists in Gateways table
+        gateway = Gateways.objects.filter(mac_address=gateway_mac).first()
+        
+        if not gateway:
             return JsonResponse({
                 "success": False,
                 "message": f"MAC address '{gateway_mac}' not found in Gateways table."
             }, status=404)
-
-        gateway_id = existing_gateway.G_id
-
-        # ✅ Step 2: Check if SensorGateway already exists
-        gateway, created = SensorGateway.objects.get_or_create(
-            gateway_id=gateway_id,
-            defaults={
-                "gateway_mac": gateway_mac,
-                "alert_status": data.get("Alert_Status"),
-                "warning_status": data.get("Warning_status"),
-                "arm": data.get("Arm"),
-                "address": data.get("address"),
-                "latitude": data.get("Lat_Log", ["", ""])[0],
-                "longitude": data.get("Lat_Log", ["", ""])[1],
-            }
-        )
-
-        # ✅ Step 3: If it already exists — update alert/warning/status data
-        if not created:
+        
+        # Check deploy status
+        if gateway.deploy_status != "deployed":
+            return JsonResponse({
+                "success": False,
+                "message": f"Gateway is not deployed. Current status = '{gateway.deploy_status}'"
+            }, status=403)
+            
+        # always update these
+        gateway.arm = arm
+        gateway.address = data.get("address", gateway.address)
+        gateway.latitude = data.get("Lat_Log", ["", ""])[0]
+        gateway.longitude = data.get("Lat_Log", ["", ""])[1]
+        
+        if arm == 1:
             gateway.alert_status = data.get("Alert_Status", gateway.alert_status)
-            gateway.warning_status = data.get("Warning_status", gateway.warning_status)
-            gateway.arm = data.get("Arm", gateway.arm)
-            gateway.address = data.get("address", gateway.address)
+            gateway.warning_status = data.get("Warning_status",gateway.warning_status)
+        gateway.status= True
+        gateway.last_seen = timezone.now()
+        gateway.save()
+        
 
-            latlog = data.get("Lat_Log", [])
-            if len(latlog) == 2:
-                gateway.latitude, gateway.longitude = latlog
+        # Step 2: Update gateway directly (NO SensorGateway table)
+        # gateway.alert_status = data.get("Alert_Status")
+        # gateway.warning_status = data.get("Warning_status")
+        # gateway.arm = data.get("Arm")
+        # gateway.address = data.get("address")
+        # gateway.latitude = data.get("Lat_Log", ["", ""])[0]
+        # gateway.longitude = data.get("Lat_Log", ["", ""])[1]
+        # gateway.save()
 
-            gateway.save()
-            print(f"🔄 Updated SensorGateway {gateway_id} with latest alert/warning data.")
-        else:
-            print(f"🆕 Created new SensorGateway for Gateway ID: {gateway_id}")
-
-        # ✅ Step 4: Save or update sensor data
+        # Step 3: Save or update sensors
         meta_data = data.get("Meta_Data", [])
         for sensor in meta_data:
             Sensor.objects.update_or_create(
@@ -106,11 +196,8 @@ def save_gateway_data(request):
 
         return JsonResponse({
             "success": True,
-            "message": (
-                f"Sensor data {'created' if created else 'updated'} successfully "
-                f"for Gateway ID {gateway_id}."
-            )
-        })
+            "message": f"Gateway + Sensors updated successfully for MAC {gateway_mac}"
+        }, status=200)
 
     except Exception as e:
         import traceback
@@ -120,32 +207,92 @@ def save_gateway_data(request):
             "message": str(e)
         }, status=500)
 
+
+# @api_view(['GET'])
+# @permission_classes([permissions.AllowAny])
+# def get_gateway_sensors(request):
+#     """
+#     Fetch gateway and its sensors using gateway_id or gateway_mac
+#     URL: /api/getgatewaydata/?gateway_id=102 or /api/getgatewaydata/?mac=0398740384089
+#     """
+#     gateway_id = request.GET.get('gateway_id')
+#     mac = request.GET.get('mac')
+
+#     if not gateway_id and not mac:
+#         return JsonResponse({'success': False, 'message': 'Provide gateway_id or mac in query params'}, status=400)
+
+#     try:
+#         # Get gateway by ID or MAC
+#         if gateway_id:
+#             gateway = SensorGateway.objects.get(gateway_id=gateway_id)
+#         else:
+#             gateway = SensorGateway.objects.get(gateway_mac=mac)
+
+#         # Get all sensors for this gateway
+#         sensors = gateway.sensors.all()  # uses related_name="sensors"
+
+#         sensor_list = []
+#         for s in sensors:
+#             sensor_list.append({
+#                 "id": s.id,
+#                 "Sensor": s.sensor_type,
+#                 "SID": s.sensor_id,
+#                 "MID": s.mac_id,
+#                 "Uname": s.sensor_name,
+#                 "status": s.status,
+#                 "battery": s.battery,
+#                 "rf": s.rf_status,
+#                 "enabled": s.enabled,
+#                 "is_on" : s.is_on
+                
+#             })
+
+#         # Prepare response
+#         response_data = {
+#             "success": True,
+#             "gateway_id": gateway.gateway_id,
+#             "gateway_mac": gateway.gateway_mac,
+#             "alert_status": gateway.alert_status,
+#             "warning_status": gateway.warning_status,
+#             "arm": gateway.arm,
+#             "address": gateway.address,
+#             "Lat_Log": [gateway.latitude, gateway.longitude],
+#             "Meta_Data": sensor_list
+#         }
+
+#         return JsonResponse(response_data, status=200)
+
+#     except SensorGateway.DoesNotExist:
+#         return JsonResponse({'success': False, 'message': 'Gateway not found'}, status=404)
+#     except Exception as e:
+#         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def get_gateway_sensors(request):
-    """
-    Fetch gateway and its sensors using gateway_id or gateway_mac
-    URL: /api/getgatewaydata/?gateway_id=102 or /api/getgatewaydata/?mac=0398740384089
-    """
+
     gateway_id = request.GET.get('gateway_id')
     mac = request.GET.get('mac')
 
     if not gateway_id and not mac:
-        return JsonResponse({'success': False, 'message': 'Provide gateway_id or mac in query params'}, status=400)
+        return JsonResponse({
+            'success': False,
+            'message': 'Provide gateway_id or mac in query params'
+        }, status=400)
 
     try:
-        # Get gateway by ID or MAC
+        # Fetch gateway
         if gateway_id:
-            gateway = SensorGateway.objects.get(gateway_id=gateway_id)
+            gateway = Gateways.objects.get(G_id=gateway_id)
         else:
-            gateway = SensorGateway.objects.get(gateway_mac=mac)
+            gateway = Gateways.objects.get(mac_address=mac)
 
-        # Get all sensors for this gateway
-        sensors = gateway.sensors.all()  # uses related_name="sensors"
+        # Fetch its sensors (reverse FK)
+        sensors = gateway.sensors.all()
 
-        sensor_list = []
-        for s in sensors:
-            sensor_list.append({
+        sensor_list = [
+            {
+                "id": s.id,
                 "Sensor": s.sensor_type,
                 "SID": s.sensor_id,
                 "MID": s.mac_id,
@@ -154,28 +301,29 @@ def get_gateway_sensors(request):
                 "battery": s.battery,
                 "rf": s.rf_status,
                 "enabled": s.enabled,
-                "image_url": s.image_url,  
-            })
+                "is_on": s.is_on
+            }
+            for s in sensors
+        ]
 
-        # Prepare response
-        response_data = {
+        return JsonResponse({
             "success": True,
-            "gateway_id": gateway.gateway_id,
-            "gateway_mac": gateway.gateway_mac,
+            "gateway_id": gateway.G_id,
+            "gateway_mac": gateway.mac_address,
             "alert_status": gateway.alert_status,
             "warning_status": gateway.warning_status,
             "arm": gateway.arm,
             "address": gateway.address,
             "Lat_Log": [gateway.latitude, gateway.longitude],
             "Meta_Data": sensor_list
-        }
+        }, status=200)
 
-        return JsonResponse(response_data, status=200)
+    except Gateways.DoesNotExist:
+        return JsonResponse({"success": False, "message": "Gateway not found"}, status=404)
 
-    except SensorGateway.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Gateway not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+        return JsonResponse({"success": False, "message": str(e)}, status=500)
+
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
@@ -199,7 +347,8 @@ def create_admincr(request):
             except User.DoesNotExist:
                 return JsonResponse({'error': 'User with the given cr_id_id does not exist.'}, status=404)
 
-            # Ensure the su
+            # Ensure the superadmin's role is 'superadmin'
+            if cr_id_instance.role != 'user':
                 return JsonResponse({'error': 'The user does not have the required role (user).'}, status=403)
 
             try:
@@ -568,13 +717,16 @@ def create_user(request, users_id):
             is_online = data.get('is_online', False)
             adress = data.get('adress')
             zip_code = data.get('zip_code')
-            image_base64 = data.get('image')
+            image_url = data.get('image')
 
             if not all([firstname, lastname, email, contact, password, ]):
                 return JsonResponse({'error': 'All required fields must be provided.'}, status=400)
 
             if role not in dict(User.ROLES):
                 return JsonResponse({'error': 'Invalid role.'}, status=400)
+            
+            # image upload to cloudinary
+          
 
             # Create user object
             user = User(
@@ -586,7 +738,7 @@ def create_user(request, users_id):
                 role=role,
                 adress=adress,
                 zip_code=zip_code,
-                image=image_base64,
+                image=image_url,
                 is_online=is_online,
                 created_by_id = data.get('created_by_id')
   # Setting the current admin as the creator
@@ -743,9 +895,13 @@ def get_user_gateways(request):
                 "status": g.status,
                 "deploy_status": g.deploy_status,
                 "config": g.config,
-      
-                "analyzers_by_port": g.analyzers_by_port,
                 "created_by_id": g.created_by_id,
+                "address": g.address,
+                "longitude":g.longitude,
+                "latitude":g.latitude,
+                "alert_status":g.alert_status,
+                "warning_status":g.warning_status,
+                "last_updated": g.last_updated
             })
 
         # ✅ Return both count and list
@@ -1329,6 +1485,7 @@ def delete_selected_hardware(request):
 #create Project Manager
 from django.db import transaction
 
+
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def Create_Project_Manager(request):
@@ -1600,14 +1757,8 @@ def create_Gateways(request):
             status = data.get('status', False)
             deploy_status = data.get('deploy_status', 'warehouse')
             config = data.get('config', False)
-            created_by_id = data.get('created_by_id')  # ✅ Get from request
+            created_by_id = data.get('created_by_id')  
 
-            analyzers_by_port = {
-                'com1': [],
-                'com2': [],
-                'e1': [],
-                'e2': []
-            }
 
             gateway = Gateways.objects.create(
                 gateway_name=gateway_name,
@@ -1615,7 +1766,6 @@ def create_Gateways(request):
                 status=status,
                 deploy_status=deploy_status,
                 config=config,
-                analyzers_by_port=analyzers_by_port,
                 user_id=None,
                 created_by_id=created_by_id  # ✅ Important!
             )
@@ -1623,7 +1773,6 @@ def create_Gateways(request):
             return JsonResponse({
                 'message': 'Gateway created successfully',
                 "Gateway Id": gateway.G_id,
-                "analyzers_by_port": analyzers_by_port,
                 "created_by_id": created_by_id,
             }, status=200)
         except Exception as e:
@@ -1815,39 +1964,69 @@ def fetch_gateways_of_user(request):
 
     return JsonResponse({'message': 'Invalid request method'}, status=405)
 
+
 @api_view(['PUT'])
 @permission_classes([permissions.AllowAny])
 def update_gateway(request):
-    if request.method == "PUT":
-        try:
-            data = json.loads(request.body)
-            gateway_id = data.get('G_id')
-            project_id = data.get('project_id')  # Ensure project_id is passed
-            deploy_status = data.get('deploy_status')
+    try:
+        data = json.loads(request.body)
+        gateway_id = data.get('G_id')
+        deploy_status = data.get('deploy_status')
 
-            if not gateway_id or not project_id:
-                return JsonResponse({'message': 'Gateway ID and Project ID are required'}, status=400)
+        if not gateway_id:
+            return JsonResponse({'message': 'Gateway ID is required'}, status=400)
 
-            # Fetch gateway
-            gateway = Gateways.objects.filter(G_id=gateway_id).first()
-            if not gateway:
-                return JsonResponse({'message': 'Gateway not found'}, status=404)
+        # Fetch gateway
+        gateway = Gateways.objects.filter(G_id=gateway_id).first()
+        if not gateway:
+            return JsonResponse({'message': 'Gateway not found'}, status=404)
 
-            # Update fields
-            gateway.project_id = project_id
-            gateway.deploy_status = deploy_status
-            gateway.save()
+        # Update gateway deploy status
+        gateway.deploy_status = deploy_status
+        gateway.save()
+
+        return JsonResponse(
+            {'message': 'Gateway status updated successfully'},
+            status=200
+        )
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+# @api_view(['PUT'])
+# @permission_classes([permissions.AllowAny])
+# def update_gateway(request):
+#     if request.method == "PUT":
+#         try:
+#             data = json.loads(request.body)
+#             gateway_id = data.get('G_id')
+#             # project_id = data.get('project_id')
+#             deploy_status = data.get('deploy_status')
+
+#             if not gateway_id:
+#                 return JsonResponse({'message': 'Gateway ID is required'}, status=400)
+
+#             # Fetch gateway
+#             gateway = Gateways.objects.filter(G_id=gateway_id).first()
+#             if not gateway:
+#                 return JsonResponse({'message': 'Gateway not found'}, status=404)
+
+#             # Update fields
+#             # gateway.project_id = project_id
+#             gateway.deploy_status = deploy_status
+#             gateway.save()
             
-            project = Project_Manager.objects.filter(PM_id = project_id).first()
-            if project:
-                has_deployed_gateway = Gateways.objects.filter(project_id=project_id,deploy_status="deployed").exists()
-                project.is_active = has_deployed_gateway
-                project.save()
+#             project = Project_Manager.objects.filter(PM_id = project_id).first()
+#             if project:
+#                 has_deployed_gateway = Gateways.objects.filter(project_id=project_id,deploy_status="deployed").exists()
+#                 project.is_active = has_deployed_gateway
+#                 project.save()
 
-            return JsonResponse({'message': 'Gateway and project updated successfully'}, status=200)
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
-    return JsonResponse({'message': 'Invalid request method'}, status=405)
+#             return JsonResponse({'message': 'Gateway and project updated successfully'}, status=200)
+#         except Exception as e:
+#             return JsonResponse({'error': str(e)}, status=400)
+#     return JsonResponse({'message': 'Invalid request method'}, status=405)
 
 
 
@@ -1979,25 +2158,31 @@ def get_deployed_gateway_count(request):
     return JsonResponse({'message': 'Invalid request method'}, status=405)
 
 
+# getting total gateways
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def get_all_gateways(request):
     if request.method == "GET":
         try:
-            user_id = request.GET.get("user_id")  
-            role = request.GET.get("role")        
-            if role == "admin":
-                gateways = Gateways.objects.all()  # Admin sees all
+            user_id = request.GET.get("user_id")
+            
+            # fetch according to created by id
+            if user_id:
+                gateways = Gateways.objects.filter(created_by_id=user_id)
             else:
-                gateways = Gateways.objects.filter(user_id=user_id)  # Normal user sees only their gateways
+                gateways = Gateways.objects.all()
+
+            # Debugging: Check if any gateways are fetched
+            print(f"Gateways found: {gateways.count()}")
 
             if not gateways.exists():
-                return JsonResponse({'success': True, 'gateways': []}, status=200)
+                return JsonResponse({'message': 'No gateways found'}, status=404)
 
+            # Construct the response data
             gateways_data = []
             for gateway in gateways:
                 created_by_user = User.objects.filter(user_id=gateway.created_by_id).first()
-                admin_image = created_by_user.image if created_by_user else None
+                admin_image = created_by_user.image if created_by_user else None  
 
                 gateways_data.append({
                     'G_id': gateway.G_id,
@@ -2008,17 +2193,28 @@ def get_all_gateways(request):
                     'config': gateway.config,
                     'created_by_id': gateway.created_by_id,
                     'user_id': gateway.user_id.user_id if gateway.user_id else None,
+                    "firstname":gateway.user_id.firstname if gateway.user_id else None,
+                    "lastname":gateway.user_id.lastname if gateway.user_id else None,
                     'user_image': gateway.user_id.image if gateway.user_id else None,
-                    'admin_image': admin_image
+                    'admin_image': admin_image,
+                    "address":gateway.address,
+                    "longitude":gateway.longitude,
+                    "latitude":gateway.latitude,
+                    "alert_status":gateway.alert_status,
+                    "warning_status":gateway.warning_status,
+                    "last_updated" : gateway.last_updated
                 })
-
-            return JsonResponse({'success': True, 'gateways': gateways_data}, status=200)
+            
+            return JsonResponse({'Gateways': gateways_data}, status=200)
 
         except Exception as e:
-            print(f"Error occurred: {str(e)}")
-            return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
+            # print(f"Error occurred: {str(e)}") 
+            return JsonResponse({'error': str(e)}, status=400)
+    
+    # print(f"Invalid request method: {request.method}")
     return JsonResponse({'message': 'Invalid request method'}, status=405)
+
+
 
 
 
@@ -3668,13 +3864,147 @@ def get_unassigned_users(request):
 
 
 
-@api_view(['GET'])
-@permission_classes([permissions.AllowAny])
-def get_all_gateways(request):
-    try:
-        gateways = Gateways.objects.all()
-        serializer = GatewaysSerializer(gateways, many=True)
-        return Response({"success": True, "gateways": serializer.data})
-    except Exception as e:
-        return Response({"success": False, "error": str(e)})
+@csrf_exempt
+def delete_images(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            public_ids = data.get("public_ids")
+            print("data",data)
 
+            if not public_ids or not isinstance(public_ids, list):
+                return JsonResponse(
+                    {"error": "public_ids (list) is required"}, status=400
+                )
+
+            # Delete images from Cloudinary
+            result = cloudinary.api.delete_resources(public_ids,invalidate=True)
+
+            return JsonResponse(
+                {"message": "Images deleted from Cloudinary", "result": result}
+            )
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "POST method required"}, status=400)
+
+
+# cludinary update
+@csrf_exempt
+def update_image(request):
+    if request.method == "POST":
+        try:
+            public_id = request.POST.get("public_id")
+            image_file = request.FILES.get("image")
+            
+            if not public_id or not image_file:
+                return JsonResponse({"message":"public id and new image are required"},status=status.HTTP_400_BAD_REQUEST)
+            
+            result = cloudinary.uploader.upload(
+                image_file,
+                public_id=public_id,
+                overwrite=True,
+                invalidate=True,
+            )
+            
+            return JsonResponse({"message" : "updated successfully", "result":result},status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return JsonResponse({"error" : str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return JsonResponse({"error" : "invalid request method"},status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+@csrf_exempt
+def upload_image(request):
+    if request.method == 'POST' and request.FILES.get('image'):
+        image_file = request.FILES['image']
+        title = request.POST.get('title', 'No title')
+
+        # Upload to Cloudinary
+        result = cloudinary.uploader.upload(
+            image_file,
+            folder='uploads/'  # Creates folder in Cloudinary
+        )
+
+        # # Save to DB
+        # uploaded = UploadedImage.objects.create(
+        #     title=title,
+        #     image=result['secure_url'],
+        #     public_id=result['public_id']
+        # )
+
+        return JsonResponse({'message': 'Image uploaded', 'url': result['secure_url'], "public_id":result['public_id']})
+    return JsonResponse({'error': 'POST method and image required'}, status=400)
+
+
+# ============ON OFF sensor==============
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def toggle_sensor(request,sensor_id):
+
+    try:
+        sensor = Sensor.objects.get(id=sensor_id)
+    except Sensor.DoesNotExist:
+        return Response({"message" : f"Sensord not found with {sensor_id} ID"},status=status.HTTP_404_NOT_FOUND)
+
+    
+    data = request.data
+    
+
+    new_status = data.get("is_on")
+
+    
+    if new_status is None:
+        return JsonResponse({"message" : "New status is required"},status=status.HTTP_400_BAD_REQUEST)
+    
+
+    
+    sensor.is_on = bool(new_status)
+
+    sensor.save()
+    
+    return JsonResponse({
+        "message" : "sensore updated",
+        "sensor_id" : sensor.sensor_id,
+        "is_on" : sensor.is_on
+    },status=status.HTTP_200_OK)
+    
+
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def check_last_update(request):
+    try:
+        minutes = int(request.data.get("minutes", 0))
+        gateway_ids = request.data.get("gateway_ids", [])
+
+        cutoff_time = timezone.now() - timedelta(minutes=minutes)
+
+        gateways = Gateways.objects.filter(G_id__in=gateway_ids)
+
+        response_list = []
+
+        for g in gateways:
+            is_updated = g.last_updated >= cutoff_time
+            response_list.append({
+                "id": g.G_id,
+                "name": g.gateway_name,
+                "last_updated": g.last_updated,
+                "updated": is_updated
+            })
+
+        # ✅ Return after the loop, not inside
+        return Response({
+            "status": True,
+            "count": len(response_list),
+            "gateways": response_list
+        })
+
+    except Exception as e:
+        return Response({"status": False, "error": str(e)})  

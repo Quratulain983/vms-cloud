@@ -10,9 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
-from pathlib import Path
 import os
 from datetime import timedelta
+from pathlib import Path
+
+import cloudinary
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,11 +26,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-h8pki%_7ld!zf^^ro&y+a3)9f&6=v60-qdo%(o^+u1e6#1hitc"
 
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [ '*', 'hat-server-382170497486.us-central1.run.app', 'hat-webapp-382170497486.us-central1.run.app']
-CSRF_TRUSTED_ORIGINS = ['https://hat-webapp-382170497486.us-central1.run.app']
+ALLOWED_HOSTS = [ '*', 'ems-server-530056698.us-central1.run.app', 'ems-webapp-530056698.us-central1.run.app']
+CSRF_TRUSTED_ORIGINS = ['https://ems-webapp-530056698.us-central1.run.app']
 #https://ems-webapp-530056698.us-central1.run.app/
 
 
@@ -40,13 +44,11 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "ems_app",
+    'ems_app.apps.EmsAppConfig',
     "corsheaders",
     'rest_framework',
     'rest_framework_simplejwt',
 ]
-
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -117,6 +119,19 @@ WSGI_APPLICATION = "ems_project.wsgi.application"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 
+
+DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+
+cloudinary.config(
+    cloud_name="dhut1eqjs",
+    api_key="951228446286662",
+    api_secret="nW4itNhexxcQMAF-75hseenbIS8",
+    secure=True,
+)
+
+
+
+
 # #for localhost
  # #Get environment variables (these should be set in Cloud Run)
 INSTANCE_CONNECTION_NAME = "myprojectems-435411:us-central1:emsdb"  # Format: project:region:instance
@@ -184,3 +199,14 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# wzoa hmfv hxdy nsbb
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = "zainahsan660@gmail.com"          # your Gmail address
+EMAIL_HOST_PASSWORD = "wzoa hmfv hxdy nsbb"   # App Password from Google
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

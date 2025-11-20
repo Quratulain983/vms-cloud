@@ -1,6 +1,7 @@
+import uuid
+
 from django.db import models
 from django.utils import timezone
-import uuid
 
 
 # models.py
@@ -24,6 +25,7 @@ class User(models.Model):
     unique_key = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     hardware = models.ManyToManyField('Hardware', blank=True)
     created_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='created_users')
+    reset_code = models.CharField(max_length=6 , null=True,blank=True)
 
     def __str__(self):
         return self.firstname
@@ -71,7 +73,15 @@ class Gateways(models.Model):
     G_id = models.AutoField(primary_key=True)
     gateway_name = models.CharField(max_length=50)
     mac_address = models.CharField(max_length=100, unique=True)
+    address = models.CharField(max_length=255,null=True,blank=True)
+    longitude = models.CharField(max_length=30,null=True,blank=True)
+    latitude = models.CharField(max_length=30,null=True,blank=True)
+    alert_status = models.BooleanField(default=False)
+    warning_status = models.BooleanField(default=False)
+    arm = models.BooleanField(default=False)
     status = models.BooleanField(default=False)
+    last_updated = models.DateTimeField(auto_now=True,null=True,blank=True)
+    last_seen = models.DateTimeField(null=True, blank=True)
     deploy_status = models.CharField(
             max_length=20,
             choices=[
@@ -83,15 +93,7 @@ class Gateways(models.Model):
         )
     config = models.BooleanField(default=False)
     user_id = models.ForeignKey(User, null=True , blank=True, on_delete=models.CASCADE)
-    project = models.ForeignKey(
-        'Project_Manager',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='gateways'  # Make sure this is set if you want to use `project_manager.gateways.all()`
-    )
-    analyzers_by_port = models.JSONField(default=dict)  # This will store your 'com1', 'com2', 'e1', 'e2' structure
-    analyzers = models.ManyToManyField('Analyzer', related_name='gateways')
+
     created_by_id = models.CharField(max_length=100, unique=False, null=True, blank=True)
 
 
@@ -276,7 +278,7 @@ class SensorGateway(models.Model):
 
 
 class Sensor(models.Model):
-    gateway = models.ForeignKey(SensorGateway, on_delete=models.CASCADE, related_name="sensors")
+    gateway = models.ForeignKey(Gateways, on_delete=models.CASCADE, related_name="sensors",null=True,blank=True)
     sensor_type = models.CharField(max_length=50)
     sensor_id = models.CharField(max_length=50)
     mac_id = models.CharField(max_length=100)
@@ -285,8 +287,7 @@ class Sensor(models.Model):
     battery = models.CharField(max_length=10, blank=True, null=True)
     rf_status = models.CharField(max_length=20, blank=True, null=True)
     enabled = models.BooleanField(default=True)  # Enable/Disable sensor
-    image_url = models.CharField(max_length=255, blank=True, null=True)
-
+    is_on = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.sensor_name} ({self.sensor_type})"
@@ -297,5 +298,3 @@ class superadmincr(models.Model):
     admin_id = models.CharField(max_length=20)
     def __str__(self):
         return f"Subscription {self.sub_id}"
-    
-
