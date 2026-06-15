@@ -1,15 +1,16 @@
 steps:
-  - name: 'gcr.io/cloud-builders/git'
-    args: ['clone', 'https://github.com/Quratulain983/vms-cloud.git']
-  
   - name: 'gcr.io/cloud-builders/docker'
-    dir: 'vms-cloud'
-    args: ['build', '-t', 'gcr.io/vertex-model-training/vms-cloud', '.']
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/vertex-model-training/vms-cloud'
+      - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
-    dir: 'vms-cloud'
-    args: ['push', 'gcr.io/vertex-model-training/vms-cloud']
-  
+    args:
+      - 'push'
+      - 'gcr.io/vertex-model-training/vms-cloud'
+
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     args:
       - 'gcloud'
@@ -26,5 +27,6 @@ steps:
       - '--quiet'
 
 timeout: '1200s'
+
 options:
   logging: CLOUD_LOGGING_ONLY
