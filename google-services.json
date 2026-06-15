@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "220962763516",
+    "project_id": "vms-test-ade80",
+    "storage_bucket": "vms-test-ade80.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220962763516:android:124579e5bd086956731d79",
+        "android_client_info": {
+          "package_name": "com.anonymous.Push_notification_test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmjc5sFKoivOR9KcDbVThHJ9v57DV8tdE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220962763516:android:b21eb8fa70ceef85731d79",
+        "android_client_info": {
+          "package_name": "com.anonymous.Vms_Final_Project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmjc5sFKoivOR9KcDbVThHJ9v57DV8tdE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220962763516:android:7456127dc5b4968f731d79",
+        "android_client_info": {
+          "package_name": "com.anonymous.vmsfinalproject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmjc5sFKoivOR9KcDbVThHJ9v57DV8tdE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
