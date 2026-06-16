@@ -2371,3 +2371,12 @@ def get_sensor_by_id(request, sensor_id):
             for h in history
         ]
     }, status=200)
+
+
+
+
+def health_check(request):
+    return JsonResponse({
+        "status": "online",
+        "message": "API is running"
+    })
