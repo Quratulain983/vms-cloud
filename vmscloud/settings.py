@@ -23,10 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-_9*+lyv(2hm9dwcn=+m3#h3aa(!&x*+f%)fas9@^17f2zd*!ix"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['https://hatwebserver-382170497486.us-central1.run.app/']
-
+ALLOWED_HOSTS = ['vms-cloud-382170497486.us-central1.run.app']
 # Application definition
 
 INSTALLED_APPS = [
@@ -152,13 +151,13 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+  
+    "https://hatwebserver-382170497486.us-central1.run.app"
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+   
+    "https://hatwebserver-382170497486.us-central1.run.app"
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
