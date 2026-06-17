@@ -313,6 +313,7 @@ def login_view(request):
             password = data.get('password')
 
             identifier = data.get('username or email') or data.get('email') or data.get('username')
+            
 
             if not identifier:
                 return JsonResponse({'error': 'username or email required'}, status=400)
@@ -324,7 +325,8 @@ def login_view(request):
                 Q(email=identifier) | Q(username=identifier),
                 userpass=password
             ).first()
-
+            
+            print(user)
             if user is not None:
                 refresh = RefreshToken()
                 refresh['user_id'] = user.user_id

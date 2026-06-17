@@ -25,8 +25,7 @@ SECRET_KEY = "django-insecure-_9*+lyv(2hm9dwcn=+m3#h3aa(!&x*+f%)fas9@^17f2zd*!ix
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
-
+ALLOWED_HOSTS = ['https://hatwebserver-382170497486.us-central1.run.app/']
 
 # Application definition
 
@@ -41,9 +40,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
-
-    
 ]
+
 # AUTH_USER_MODEL = "vms.User"
 
 REST_FRAMEWORK = {
@@ -87,37 +85,35 @@ TEMPLATES = [
 WSGI_APPLICATION = "vmscloud.wsgi.application"
 
 
- 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
-
-
-
-# Get environment variables (these should be set in Cloud Run)
- 
-DB_USER = "mexemaic_user"
-DB_PASS = "w_bazcGNxR9VW(&z"
-DB_NAME = "mexemaic_db"
-
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": DB_NAME,
-        "USER": DB_USER,
-        "PASSWORD": DB_PASS,
-        "HOST": "74.50.90.187",
-        "PORT": "3306",
-        "OPTIONS": {
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-            "connect_timeout": 60,
-        },
-        "CONN_MAX_AGE": 60,
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+
+
+# # Get environment variables (these should be set in Cloud Run)
+
+# DB_USER = "mexemaic_user"
+# DB_PASS = "w_bazcGNxR9VW(&z"
+# DB_NAME = "mexemaic_db"
+
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.mysql",
+#         "NAME": DB_NAME,
+#         "USER": DB_USER,
+#         "PASSWORD": DB_PASS,
+#         "HOST": "74.50.90.187",
+#         "PORT": "3306",
+#         "OPTIONS": {
+#             "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+#             "connect_timeout": 60,
+#         },
+#         "CONN_MAX_AGE": 60,
+#     }
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -154,6 +150,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -163,4 +160,5 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
 CORS_ALLOW_ALL_ORIGINS = True
