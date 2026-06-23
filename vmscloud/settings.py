@@ -25,7 +25,11 @@ SECRET_KEY = "django-insecure-_9*+lyv(2hm9dwcn=+m3#h3aa(!&x*+f%)fas9@^17f2zd*!ix
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['vms-cloud-382170497486.us-central1.run.app']
+ALLOWED_HOSTS = ['vms-cloud-382170497486.us-central1.run.app',
+                "127.0.0.1",
+                "localhost",
+                "192.168.18.24"
+                 ]
 # Application definition
 
 INSTALLED_APPS = [
@@ -158,6 +162,13 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
    
     "https://hatwebserver-382170497486.us-central1.run.app"
-]
+    ]
 
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "http://192.168.18.11:8000"
+    "http://192.168.18.24:8000"
+]
 # CORS_ALLOW_ALL_ORIGINS = True

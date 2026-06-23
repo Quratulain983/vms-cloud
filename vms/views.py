@@ -1709,7 +1709,6 @@ def admin_available_gateways(request, client_id):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
-        
 @csrf_exempt
 def update_customer(request, customer_id):
     if request.method == 'PUT':
@@ -1731,6 +1730,24 @@ def update_customer(request, customer_id):
                 customer.userpass = data['password']
 
             customer.save()
+
+            # ── Handle gateway assignment ──
+            gateway_id = data.get('gateway_id')
+            if gateway_id:
+                try:
+                    gateway = Gateway.objects.get(gateway_id=gateway_id)
+                    GatewayRelational.objects.filter(
+                        user=customer,
+                        relation_type='customer'
+                    ).delete()
+                    GatewayRelational.objects.create(
+                        gateway=gateway,
+                        user=customer,
+                        relation_type='customer'
+                    )
+                except Gateway.DoesNotExist:
+                    return JsonResponse({'error': 'Gateway not found'}, status=404)
+
             return JsonResponse({
                 'message': 'Customer updated!',
                 'user_id': customer.user_id,
@@ -1739,8 +1756,10 @@ def update_customer(request, customer_id):
         except User.DoesNotExist:
             return JsonResponse({'error': 'Customer not found'}, status=404)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({'error': str(e)}, status=400)   
         
+        
+           
 @csrf_exempt
 def update_client(request, client_id):
     if request.method == 'PUT':
@@ -1815,13 +1834,24 @@ def update_client(request, client_id):
 def receive_gateway_data(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    print("=== RAW REQUEST BODY ===")
+    print(request.body)
+    print("=== CONTENT TYPE ===")
+    print(request.content_type)
 
     try:
         body = json.loads(request.body)
     except json.JSONDecodeError:
+        print("===== JSON DECODE ERROR =====")
+        print(e)
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    
+    print("===== PARSED BODY =====")
+    print(body)
 
     mac_address = body.get('mac_address', '').strip().upper()
+    print("===== MAC ADDRESS =====")
+    print(repr(mac_address))
 
     if not mac_address:
         return JsonResponse({'error': 'mac_address is required'}, status=400)
@@ -1982,6 +2012,20 @@ def receive_gateway_data(request):
         'user_ids': user_ids,
         'data': body,
     }, status=200)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
