@@ -22,10 +22,15 @@ from pathlib import Path
 import firebase_admin
 from firebase_admin import credentials
 
-if not firebase_admin._apps:
-    cred = credentials.Certificate(os.path.join(BASE_DIR, 'firebase-credentials.json'))
-    firebase_admin.initialize_app(cred)
+import json
 
+if not firebase_admin._apps:
+    firebase_json = os.environ.get('FIREBASE_CREDENTIALS_JSON')
+    if firebase_json:
+        cred = credentials.Certificate(json.loads(firebase_json))
+        firebase_admin.initialize_app(cred)
+    else:
+        raise Exception("FIREBASE_CREDENTIALS_JSON environment variable not set")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
