@@ -182,18 +182,11 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-CSRF_TRUSTED_ORIGINS = [
-  
-    "https://hatwebserver-382170497486.us-central1.run.app"
-]
-
-CORS_ALLOWED_ORIGINS = [
-   
-    "https://hatwebserver-382170497486.us-central1.run.app"
-    ]
 
 
 CSRF_TRUSTED_ORIGINS = [
+    
+    "https://hatwebserver-382170497486.us-central1.run.app"
     "http://127.0.0.1:8000",
     "http://localhost:8000",
     "http://192.168.18.11:8000"
