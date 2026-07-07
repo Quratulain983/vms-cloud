@@ -27,10 +27,16 @@ import json
 if not firebase_admin._apps:
     firebase_json = os.environ.get('FIREBASE_CREDENTIALS_JSON')
     if firebase_json:
+        # Running on Cloud Run - credentials come from env var
         cred = credentials.Certificate(json.loads(firebase_json))
-        firebase_admin.initialize_app(cred)
     else:
-        raise Exception("FIREBASE_CREDENTIALS_JSON environment variable not set")
+        # Running locally - fall back to the local file
+        local_path = os.path.join(BASE_DIR, 'firebase-credentials.json')
+        if os.path.exists(local_path):
+            cred = credentials.Certificate(local_path)
+        else:
+            raise Exception("No Firebase credentials found (neither FIREBASE_CREDENTIALS_JSON env var nor local firebase-credentials.json file)")
+    firebase_admin.initialize_app(cred)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
