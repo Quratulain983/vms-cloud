@@ -183,7 +183,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 
-
+CORS_ALLOWED_ORIGINS = [
+    "https://hatwebserver-382170497486.us-central1.run.app",
+]
 CSRF_TRUSTED_ORIGINS = [
     
     "https://hatwebserver-382170497486.us-central1.run.app"
@@ -192,7 +194,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.18.11:8000"
     "http://192.168.18.24:8000"
 ]
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
 
 
