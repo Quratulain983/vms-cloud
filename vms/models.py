@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 import uuid
+from cloudinary.models import CloudinaryField
+
 
 class UserType(models.Model):
     usertype_id = models.AutoField(primary_key=True)
@@ -24,9 +26,11 @@ class User(models.Model):
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     client_code = models.CharField(max_length=6, null=True, blank=True)
-    icon = models.URLField(blank=True, null=True)
+    image = CloudinaryField('image', blank=True, null=True)
     usertype = models.ForeignKey(UserType, on_delete=models.SET_NULL, null=True)
     date_joined = models.DateTimeField(default=timezone.now)
+    firebase_uid = models.CharField(max_length=128, null=True, blank=True)
+
 
     parent = models.ForeignKey(
         'self',

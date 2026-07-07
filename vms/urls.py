@@ -30,7 +30,8 @@ from .views import (
     update_client,
     run_system_checks,
     get_gateway_sensors,
-    get_sensor_by_id
+    get_sensor_by_id,
+     firebase_login_view
 
    
 )
@@ -205,4 +206,5 @@ urlpatterns += [
     path('gateways/status/check/', check_gateway_status, name='v1_gateways_status_check'),
 
     path('mobileapps/sensors/<int:gateway_id>/',get_gateway_sensors,name='get_gateway_sensors'),
+path('auth/general/firebase-login/', firebase_login_view, name='firebase_login'),
 ]

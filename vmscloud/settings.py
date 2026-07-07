@@ -10,10 +10,21 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+import cloudinary
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+from pathlib import Path
+import firebase_admin
+from firebase_admin import credentials
+
+if not firebase_admin._apps:
+    cred = credentials.Certificate(os.path.join(BASE_DIR, 'firebase-credentials.json'))
+    firebase_admin.initialize_app(cred)
 
 
 # Quick-start development settings - unsuitable for production
@@ -38,18 +49,35 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+     "cloudinary_storage",
     "django.contrib.staticfiles",
+    "cloudinary",
     'vms',
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+     
+   
 ]
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": "dvjuffilc",
+    "API_KEY": "532877263839368",
+    "API_SECRET": "NT29SAFd48kR5ddrC80HYl3ZTu8",
+}
+cloudinary.config(
+    cloud_name=CLOUDINARY_STORAGE["CLOUD_NAME"],
+    api_key=CLOUDINARY_STORAGE["API_KEY"],
+    api_secret=CLOUDINARY_STORAGE["API_SECRET"],
+    secure=True,
+)
+
+DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
 # AUTH_USER_MODEL = "vms.User"
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'vms.authentication.CustomJWTAuthentication',
+         'vms.authentication.FirebaseAuthentication',
     ),
     # 'DEFAULT_PERMISSION_CLASSES': (
     #     'rest_framework.permissions.IsAuthenticated',
@@ -88,35 +116,35 @@ TEMPLATES = [
 WSGI_APPLICATION = "vmscloud.wsgi.application"
 
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 
 # # Get environment variables (these should be set in Cloud Run)
 
-DB_USER = "mexemaic_user"
-DB_PASS = "w_bazcGNxR9VW(&z"
-DB_NAME = "mexemaic_db"
+# DB_USER = "mexemaic_user"
+# DB_PASS = "w_bazcGNxR9VW(&z"
+# DB_NAME = "mexemaic_db"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": DB_NAME,
-        "USER": DB_USER,
-        "PASSWORD": DB_PASS,
-        "HOST": "74.50.90.187",
-        "PORT": "3306",
-        "OPTIONS": {
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-            "connect_timeout": 60,
-        },
-        "CONN_MAX_AGE": 60,
-    }
-}
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.mysql",
+#         "NAME": DB_NAME,
+#         "USER": DB_USER,
+#         "PASSWORD": DB_PASS,
+#         "HOST": "74.50.90.187",
+#         "PORT": "3306",
+#         "OPTIONS": {
+#             "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+#             "connect_timeout": 60,
+#         },
+#         "CONN_MAX_AGE": 60,
+#     }
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -171,4 +199,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.18.11:8000"
     "http://192.168.18.24:8000"
 ]
-# CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = True
+
+
+
