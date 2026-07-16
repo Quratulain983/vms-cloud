@@ -257,6 +257,10 @@ def signup_view(request):
 
             if User.objects.filter(email=data.get('email')).exists():
                 return JsonResponse({'error': 'Email already exists'}, status=400)
+            if not data.get('phone_number'):
+                return JsonResponse({'error': 'Phone number is required'}, status=400)
+            if not data.get('address'):
+                return JsonResponse({'error': 'Address is required'}, status=400)
 
             if data.get('phone_number') and User.objects.filter(phone_number=data.get('phone_number')).exists():
                 return JsonResponse({'error': 'Phone number already exists'}, status=400)
@@ -576,9 +580,13 @@ def gateway_to_dict(g):
         'gateway_id': g.gateway_id,
         'gateway_name': g.gateway_name,
         'gateway_static_id': g.gateway_static_id,
+        'gateway_password': g.gateway_password,
         'gateway_mac_address': g.gateway_mac_address,
         'gateway_imei': g.gateway_imei,
         'gateway_ssid': g.gateway_ssid,
+        'gateway_static_wifi': g.gateway_static_wifi,            # ← add
+        'gateway_wifi_ssid': g.gateway_wifi_ssid,                # ← add
+        'gateway_wifi_password': g.gateway_wifi_password,
         'gateway_longitude': safe_decimal(g.gateway_longitude),
         'gateway_latitude': safe_decimal(g.gateway_latitude),
         'project_id': g.project.project_id if g.project else None,
@@ -874,7 +882,7 @@ def admin_clients(request, admin_id):
     if request.method == 'GET':
         clients = User.objects.filter(
             parent_id=admin_id,
-            usertype__name='Client'
+            usertype__name__iexact='client'
         )
         data = [{
             'user_id': c.user_id,
@@ -893,7 +901,7 @@ def admin_client_customers(request, client_id):
     if request.method == 'GET':
         customers = User.objects.filter(
             parent_id=client_id,
-            usertype__name='Customer'
+            usertype__name__iexact='customer'
         ).select_related('parent')
         data = []
         for cu in customers:
@@ -967,12 +975,12 @@ def all_admin_customers(request, admin_id):
         try:
             client_ids = User.objects.filter(
                 parent_id=admin_id,
-                usertype__name='Client'
+                usertype__name__iexact='Client'
             ).values_list('user_id', flat=True)
 
             # Customers directly under admin OR under admin's clients
             customers = User.objects.filter(
-                usertype__name='Customer'
+                usertype__name__iexact='Customer'
             ).filter(
                 Q(parent_id=admin_id) |
                 Q(parent_id__in=client_ids)
@@ -1007,7 +1015,12 @@ def all_admin_customers(request, admin_id):
             return JsonResponse({'customers': data}, status=200)
 
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)                 
+            return JsonResponse({'error': str(e)}, status=500)    
+        
+        
+        
+        
+                     
 # 6. gateways under admin
 @csrf_exempt
 def all_admin_gateways(request, admin_id):
@@ -1037,17 +1050,46 @@ def all_admin_gateways(request, admin_id):
 
 
 
+@api_view(['GET'])
+def client_all_gateways(request, client_id):
+    """
+    Returns every gateway belonging to a project that was assigned to this client.
+    Mirrors the response shape used by all_admin_gateways / get_all_gateways_for_superadmin.
+    """
+    gateways = Gateway.objects.filter(project__assigned_to_id=client_id).select_related(
+        'project', 'gatewaytype', 'gatewaysubtype', 'deploy_status', 'active_status'
+    )
+
+    data = []
+    for g in gateways:
+        data.append({
+            'gateway_id': g.gateway_id,
+            'gateway_name': g.gateway_name,
+            'gateway_mac_address': g.gateway_mac_address,
+            'gateway_type': g.gatewaytype.name if g.gatewaytype else None,
+            'gateway_subtype': g.gatewaysubtype.name if g.gatewaysubtype else None,
+            'project_id': g.project_id,
+            'project_name': g.project.project_name if g.project else None,
+            'deploy_status': g.deploy_status.name if g.deploy_status else None,
+            'active_status': g.active_status.name if g.active_status else None,
+            'arm_status': g.arm_status,
+            'last_seen': g.last_seen,
+            'allotted_to_client_username': g.project.assigned_to.username if g.project and g.project.assigned_to else None,
+        })
+
+    return Response({'gateways': data})
+
 @api_view(["GET"])
 def admin_details_view(request):
-    admins = User.objects.filter(usertype__name='Admin')
+    admins = User.objects.filter(usertype__name__iexact='admin')
     data = []
 
     for a in admins:
-        clients = User.objects.filter(parent=a, usertype__name='Client')
+        clients = User.objects.filter(parent=a, usertype__name__iexact='client')
 
         total_customers = User.objects.filter(
             parent__in=clients,
-            usertype__name='Customer'
+            usertype__name__iexact='customer'
         ).count()
 
         total_projects = Project.objects.filter(
@@ -1079,7 +1121,7 @@ def admin_details_view(request):
 @csrf_exempt
 def get_all_clients_for_superadmin(request):
     if request.method == 'GET':
-        clients = User.objects.filter(usertype__name='Client')
+        clients = User.objects.filter(usertype__name__iexact='client')
         data = [{
             'user_id': c.user_id,
             'username': c.username,
@@ -1098,7 +1140,7 @@ def get_all_customers_for_superadmin(request):
     if request.method == 'GET':
         try:
             customers = User.objects.filter(
-                usertype__name='Customer'
+                 usertype__name__iexact='customer'
             ).select_related('parent')
 
             data = []
@@ -1129,6 +1171,12 @@ def get_all_customers_for_superadmin(request):
             return JsonResponse({'customers': data}, status=200)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)  
+ 
+ 
+ 
+ 
+ 
+ 
         
 #all projects      
 @csrf_exempt
@@ -1161,61 +1209,137 @@ def delete_admin(request, admin_id):
         except User.DoesNotExist:
             return JsonResponse({'error': 'Admin not found'}, status=404)
         
+
+
+
 @csrf_exempt
 def delete_user(request, user_id):
 
-    if request.method == 'DELETE':
-        try:
+    if request.method != "DELETE":
+        return JsonResponse({"error": "Invalid request"}, status=405)
+
+    try:
+        with transaction.atomic():
+
             user = User.objects.get(user_id=user_id)
-            role = user.usertype.name if user.usertype else ''
+            role = (user.usertype.name if user.usertype else "").lower().strip()
+            force = request.GET.get("force") == "true"
 
-            # ── ADMIN
-            if role == 'Admin':
-                remaining_clients = User.objects.filter(
-                    parent_id=user_id,
-                    usertype__name='Client'
-                ).count()
-                if remaining_clients > 0:
+            # ---------------- ADMIN ----------------
+
+            if role == "admin":
+
+                clients = User.objects.filter(
+                    parent=user,
+                    usertype__name__iexact="client"
+                )
+
+                if clients.exists() and not force:
                     return JsonResponse({
-                        'error': f'Cannot delete admin. {remaining_clients} client(s) still assigned!'
+                        "error": f"Cannot delete admin. {clients.count()} client(s) still assigned!"
                     }, status=400)
 
-            # ── CLIENT
-            elif role == 'Client':
-                remaining_customers = User.objects.filter(
-                    parent_id=user_id,
-                    usertype__name='Customer'
-                ).count()
-                if remaining_customers > 0:
+                if force:
+
+                    for client in clients:
+
+                        customers = User.objects.filter(
+                            parent=client,
+                            usertype__name__iexact="customer"
+                        )
+
+                        for customer in customers:
+
+                            if customer.firebase_uid:
+                                try:
+                                    firebase_auth.delete_user(customer.firebase_uid)
+                                except Exception:
+                                    pass
+
+                            customer.delete()
+
+                        if client.firebase_uid:
+                            try:
+                                firebase_auth.delete_user(client.firebase_uid)
+                            except Exception:
+                                pass
+
+                        client.delete()
+
+            # ---------------- CLIENT ----------------
+
+            elif role == "client":
+
+                customers = User.objects.filter(
+                    parent=user,
+                    usertype__name__iexact="customer"
+                )
+
+                if customers.exists() and not force:
                     return JsonResponse({
-                        'error': f'Cannot delete client. {remaining_customers} customer(s) still assigned!'
+                        "error": f"Cannot delete client. {customers.count()} customer(s) still assigned!"
                     }, status=400)
 
-            # ── CUSTOMER
-            elif role == 'Customer':
-                remaining_gateways = GatewayRelational.objects.filter(user_id=user_id).count()
-                force = request.GET.get('force') == 'true'
-                if remaining_gateways > 0 and not force:
-                    return JsonResponse({
-                        'error': f'Cannot delete customer. {remaining_gateways} gateway(s) still assigned!'
-                    }, status=400)
-                if remaining_gateways > 0 and force:
-                    GatewayRelational.objects.filter(user_id=user_id).delete()
+                if force:
 
-            # ── NEW: delete from Firebase Auth too ──
+                    for customer in customers:
+
+                        if customer.firebase_uid:
+                            try:
+                                firebase_auth.delete_user(customer.firebase_uid)
+                            except Exception:
+                                pass
+
+                        customer.delete()
+
+            # ---------------- CUSTOMER ----------------
+
+            elif role == "customer":
+
+                if user.firebase_uid:
+                    try:
+                        firebase_auth.delete_user(user.firebase_uid)
+                    except Exception:
+                        pass
+
+            # delete firebase account of current user
+
             if user.firebase_uid:
                 try:
                     firebase_auth.delete_user(user.firebase_uid)
-                except Exception as fb_err:
-                    print('Firebase delete error:', fb_err)
+                except Exception:
+                    pass
+
+            # Django CASCADE deletes:
+            # Projects
+            # Gateways
+            # GatewayRelationals
+            # Metadata
+            # Sensors
+            # SensorHistory
+            # Cameras
+            # CameraROI
+            # GatewayStatus
 
             user.delete()
-            return JsonResponse({'message': f'{role} deleted successfully!'}, status=200)
 
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return JsonResponse({
+                "message": f"{role} deleted successfully."
+            }, status=200)
+
+    except User.DoesNotExist:
+        return JsonResponse({
+            "error": "User not found."
+        }, status=404)
+
+    except Exception as e:
+        return JsonResponse({
+            "error": str(e)
+        }, status=500)
+
+
+
+
 
 @csrf_exempt
 def reassign_clients_to_admin(request):
@@ -1225,15 +1349,27 @@ def reassign_clients_to_admin(request):
         new_admin_id = data.get('new_admin_id')
         try:
             new_admin = User.objects.get(user_id=new_admin_id)
-            updated = User.objects.filter(
+
+            updated_clients = User.objects.filter(
                 parent_id=old_admin_id,
-                usertype__name__iexact='Clinet'
+                usertype__name__iexact='client'
             ).update(parent=new_admin)
+
+            updated_projects = Project.objects.filter(
+                user_id=old_admin_id
+            ).update(user=new_admin)
+
             return JsonResponse({
-                'message': f'{updated} clients reassigned to {new_admin.username}!'
+                'message': f'{updated_clients} clients and {updated_projects} projects reassigned to {new_admin.username}!'
             }, status=200)
         except User.DoesNotExist:
             return JsonResponse({'error': 'Admin not found'}, status=404)
+
+
+
+
+
+
         
 @csrf_exempt
 def reassign_customers_to_client(request):
@@ -1245,7 +1381,7 @@ def reassign_customers_to_client(request):
             new_client = User.objects.get(user_id=new_client_id)
             User.objects.filter(
                 parent_id=old_client_id,
-                usertype__name='Customer'
+               usertype__name__iexact='customer'
             ).update(parent=new_client)
             return JsonResponse({'message': 'Customers reassigned!'}, status=200)
         except User.DoesNotExist:
@@ -1301,7 +1437,6 @@ def reassign_gateways_to_project(request):
         
 @csrf_exempt
 def reassign_projects_to_client(request):
-   
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -1311,15 +1446,14 @@ def reassign_projects_to_client(request):
             with transaction.atomic():
                 new_client = User.objects.get(user_id=new_client_id)
 
-                projects = Project.objects.filter(user_id=old_client_id)
+                projects = Project.objects.filter(assigned_to_id=old_client_id)   # ← fixed
                 count = projects.count()
 
                 for project in projects:
-                    project.user = new_client
+                    project.assigned_to = new_client   # ← fixed
                     project.save()
 
-                # Verify
-                remaining = Project.objects.filter(user_id=old_client_id).count()
+                remaining = Project.objects.filter(assigned_to_id=old_client_id).count()   # ← fixed
                 if remaining > 0:
                     raise Exception(f'{remaining} projects could not be reassigned!')
 
@@ -1331,9 +1465,14 @@ def reassign_projects_to_client(request):
             return JsonResponse({'error': 'New client not found'}, status=404)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
-
-
-
+        
+        
+        
+        
+        
+        
+        
+        
 @csrf_exempt
 def delete_project(request, project_id):
    
@@ -1365,6 +1504,7 @@ def get_all_users(request):
             'username': u.username,
             'email': u.email,
             'usertype_name': u.usertype.name if u.usertype else None,
+            'parent_id': u.parent_id,
         } for u in users]
         return JsonResponse({'users': data}, status=200)
 
@@ -1374,7 +1514,7 @@ def client_my_customers(request, client_id):
     if request.method == 'GET':
         customers = User.objects.filter(
             parent_id=client_id,
-            usertype__name='Customer'
+            usertype__name__iexact='customer'
         ).select_related('parent')
         data = []
         for cu in customers:
@@ -1521,11 +1661,15 @@ def customer_gateway_detail(request, customer_id, gateway_id):
             }
 
         return JsonResponse({
+             **gateway_to_dict(g),
             'gateway_id'  : g.gateway_id,
             'gateway_name': g.gateway_name,
             'mac_address' : g.gateway_mac_address,
             'imei'        : g.gateway_imei,
             'ssid'        : g.gateway_ssid,
+            'gateway_wifi_ssid'     : g.gateway_wifi_ssid,
+            'gateway_wifi_password' : g.gateway_wifi_password,
+            
             'longitude'   : str(g.gateway_longitude) if g.gateway_longitude else None,
             'latitude'    : str(g.gateway_latitude)  if g.gateway_latitude  else None,
             'project_name' : g.project.project_name if g.project else 'N/A',
@@ -1654,7 +1798,9 @@ def delete_gateway(request, gateway_id):
 def get_all_gateways_for_superadmin(request):
     if request.method == 'GET':
         gateways = Gateway.objects.all().select_related(
-            'project', 'gatewaytype', 'gatewaysubtype', 'deploy_status', 'active_status'
+            'project', 'gatewaytype', 'gatewaysubtype', 
+            
+            'deploy_status', 'active_status'
         ).prefetch_related('status_history')
         return JsonResponse({'gateways': [gateway_to_dict(g) for g in gateways]}, status=200)
 
@@ -1706,7 +1852,7 @@ def create_customer(request):
             except User.DoesNotExist:
                 return JsonResponse({'error': 'Parent user not found'}, status=400)
 
-            customer_role = UserType.objects.filter(name='Customer').first()
+            customer_role = UserType.objects.filter(name__iexact='customer').first()
             if not customer_role:
                 return JsonResponse({'error': 'Customer role not found'}, status=400)
 
@@ -1715,6 +1861,10 @@ def create_customer(request):
 
             if User.objects.filter(email=data.get('email')).exists():
                 return JsonResponse({'error': 'Email already exists'}, status=400)
+            if not data.get('phone_number'):
+                return JsonResponse({'error': 'Phone number is required'}, status=400)
+            if not data.get('address'):
+                return JsonResponse({'error': 'Address is required'}, status=400)
 
             with transaction.atomic():
                 customer = User.objects.create(
@@ -1750,6 +1900,8 @@ def create_customer(request):
                 'message': 'Customer created successfully!',
                 'user_id': customer.user_id,
                 'username': customer.username,
+                
+                
                 'parent': parent_user.username,
                 'image_url': customer.image.url if customer.image else None,
             }, status=201)
@@ -1863,15 +2015,16 @@ def admin_available_gateways(request, user_id):
 
 
 
-
 @api_view(['PUT'])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 @permission_classes([AllowAny])
 def update_customer(request, customer_id):
     try:
-        data = request.data  # works whether frontend sends FormData or JSON
+        data = request.data
 
         customer = User.objects.get(user_id=customer_id)
+
+        firebase_updates = {}
 
         if 'username' in data and data['username'] != customer.username:
             if User.objects.filter(username=data['username']).exists():
@@ -1882,12 +2035,36 @@ def update_customer(request, customer_id):
             if User.objects.filter(email=data['email']).exists():
                 return JsonResponse({'error': 'Email already exists'}, status=400)
             customer.email = data['email']
+            firebase_updates['email'] = data['email']
 
         if data.get('password'):
             customer.userpass = data['password']
+            firebase_updates['password'] = data['password']
 
-        customer.phone_number = data.get('phone_number') or None
-        customer.address = data.get('address') or None
+        phone_number = data.get('phone_number')
+        address = data.get('address')
+        if not phone_number:
+            return JsonResponse({'error': 'Phone number is required'}, status=400)
+        if not address:
+            return JsonResponse({'error': 'Address is required'}, status=400)
+
+        customer.phone_number = phone_number
+        customer.address = address
+
+        # ── Sync email/password changes to Firebase Auth ──
+        if firebase_updates:
+            if not customer.firebase_uid:
+                return JsonResponse({
+                    'error': 'This user has no linked Firebase account, cannot update login credentials'
+                }, status=400)
+            try:
+                firebase_auth.update_user(customer.firebase_uid, **firebase_updates)
+            except firebase_auth.UserNotFoundError:
+                return JsonResponse({'error': 'Firebase account not found for this user'}, status=400)
+            except firebase_auth.EmailAlreadyExistsError:
+                return JsonResponse({'error': 'Email already exists'}, status=400)
+            except Exception as e:
+                return JsonResponse({'error': f'Firebase update failed: {str(e)}'}, status=400)
 
         # NEW — image handling
         if request.FILES.get('image'):
@@ -1926,6 +2103,8 @@ def update_customer(request, customer_id):
 
 
 
+
+
 @api_view(['PUT'])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 @permission_classes([AllowAny])
@@ -1934,6 +2113,8 @@ def update_client(request, client_id):
         data = request.data
 
         client = User.objects.get(user_id=client_id)
+
+        firebase_updates = {}
 
         if 'username' in data and data['username'] != client.username:
             if User.objects.filter(username=data['username']).exists():
@@ -1944,6 +2125,7 @@ def update_client(request, client_id):
             if User.objects.filter(email=data['email']).exists():
                 return JsonResponse({'error': 'Email already exists'}, status=400)
             client.email = data['email']
+            firebase_updates['email'] = data['email']
 
         if 'first_name' in data:
             client.first_name = data['first_name']
@@ -1955,8 +2137,23 @@ def update_client(request, client_id):
             client.address = data['address']
         if data.get('password'):
             client.userpass = data['password']
+            firebase_updates['password'] = data['password']
 
-        # NEW — image handling (replaces old "icon" field)
+        # ── Sync email/password changes to Firebase Auth ──
+        if firebase_updates:
+            if not client.firebase_uid:
+                return JsonResponse({
+                    'error': 'This user has no linked Firebase account, cannot update login credentials'
+                }, status=400)
+            try:
+                firebase_auth.update_user(client.firebase_uid, **firebase_updates)
+            except firebase_auth.UserNotFoundError:
+                return JsonResponse({'error': 'Firebase account not found for this user'}, status=400)
+            except firebase_auth.EmailAlreadyExistsError:
+                return JsonResponse({'error': 'Email already exists'}, status=400)
+            except Exception as e:
+                return JsonResponse({'error': f'Firebase update failed: {str(e)}'}, status=400)
+
         if request.FILES.get('image'):
             client.image = request.FILES['image']
 
@@ -1987,8 +2184,6 @@ def update_client(request, client_id):
         return JsonResponse({'error': 'User not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
-
-
 
 @csrf_exempt
 def receive_gateway_data(request):

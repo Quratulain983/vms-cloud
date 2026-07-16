@@ -31,7 +31,8 @@ from .views import (
     run_system_checks,
     get_gateway_sensors,
     get_sensor_by_id,
-     firebase_login_view
+     firebase_login_view,
+     client_all_gateways
 
    
 )
@@ -78,6 +79,8 @@ urlpatterns = [
     path('client/general/create-customer/', create_customer, name='create_customer'),    
     path('client/general/customers/update/<int:customer_id>/',                   update_customer,         name='update_customer'),
     path('clients/general/update/<int:client_id>/', update_client, name='update_client'),
+    path('client/general/gateways/<int:client_id>/', client_all_gateways, name='client_gateways'),
+
 
 
     # --- Customer ---
